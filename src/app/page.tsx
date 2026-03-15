@@ -1,4 +1,4 @@
-import Board from "../components/Board"
+import Board from '../components/Board';
 
 export default function Home() {
   return (
@@ -6,5 +6,5 @@ export default function Home() {
       <h1 className="text-2x1 font-bold mb-4">Kanban Board</h1>
       <Board />
     </div>
-  )
+  );
 }

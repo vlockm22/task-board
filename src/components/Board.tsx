@@ -1,9 +1,12 @@
-// src/components/Board.tsx
-"use client"
+'use client';
 
-import { useEffect, useState } from "react"
-import { supabase } from "../lib/supabase"
-import CreateTaskForm from "./CreateTaskForm"
+import { useEffect, useState } from 'react';
+import { Task, TaskStatus, TeamMember } from '../types';
+import { supabase } from '../lib/supabase';
+
+import CreateTaskForm from './CreateTaskForm';
+import TeamMemberForm from './TeamMemberForm';
+import Column from './Column';
 
 import {
   DndContext,
@@ -11,237 +14,186 @@ import {
   useSensor,
   useSensors,
   closestCenter,
-  DragEndEvent,
   DragStartEvent,
+  DragOverEvent,
+  DragEndEvent,
   DragOverlay,
-  useDroppable,
-  DragOverEvent
-} from "@dnd-kit/core"
-
-import { CSS } from "@dnd-kit/utilities"
-
-type Task = {
-  id: string
-  title: string
-  status: "todo" | "in_progress" | "in_review" | "done"
-  description?: string
-  priority?: "low" | "normal" | "high"
-}
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 
 export default function Board() {
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [taskAssignees, setTaskAssignees] = useState<Record<string, TeamMember[]>>({});
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [dragOver, setDragOver] = useState<{ column: TaskStatus; index: number } | null>(null);
 
-  const columns: Task["status"][] = ["todo", "in_progress", "in_review", "done"]
-  const [dragOver, setDragOver] = useState<{ column: Task["status"]; index: number } | null>(null)
+  const columns: TaskStatus[] = ['todo', 'in_progress', 'in_review', 'done'];
+
+  // --- Fetch functions ---
+  const fetchTeam = async () => {
+    const { data, error } = await supabase.from('team_members').select('*');
+    if (error) console.error(error);
+    else setTeam(data);
+  };
 
   const fetchTasks = async () => {
     const { data, error } = await supabase
-      .from("tasks")
-      .select("*")
-      .order("created_at", { ascending: true })
-    if (error) console.error(error)
-    else setTasks(data as Task[])
-  }
+      .from('tasks')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) console.error(error);
+    else setTasks(data as Task[]);
+  };
+
+  const fetchAssignees = async () => {
+    const { data, error } = await supabase.from('task_assignees').select('*');
+    if (error) return console.error(error);
+
+    const map: Record<string, TeamMember[]> = {};
+    data.forEach(a => {
+      const member = team.find(t => t.id === a.member_id);
+      if (!member) return;
+      if (!map[a.task_id]) map[a.task_id] = [];
+      map[a.task_id].push(member);
+    });
+    setTaskAssignees(map);
+  };
 
   useEffect(() => {
-    fetchTasks()
-  }, [])
+    fetchTasks();
+    fetchTeam();
+  }, []);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  useEffect(() => {
+    if (team.length > 0) fetchAssignees();
+  }, [team]);
+
+  // --- DnD sensors ---
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const handleDragStart = (event: DragStartEvent) => {
-    const t = tasks.find((x) => x.id === event.active.id)
-    if (t) setActiveTask(t)
-  }
+    const t = tasks.find(x => x.id === event.active.id);
+    if (t) setActiveTask(t);
+  };
 
   const handleDragOver = (event: DragOverEvent) => {
-  const { active, over } = event
-    if (!over) return setDragOver(null)
+    const { active, over } = event;
+    if (!over) return setDragOver(null);
+    const overId = over.id as string;
 
-    const overId = over.id as string
-
-    // Determine which column and index we’re over
-    if (columns.includes(overId as Task["status"])) {
-        // Hovering over empty column → place at end
-        setDragOver({ column: overId as Task["status"], index: tasks.filter(t => t.status === overId).length })
+    if (columns.includes(overId as TaskStatus)) {
+      setDragOver({
+        column: overId as TaskStatus,
+        index: tasks.filter(t => t.status === overId).length,
+      });
     } else {
-        // Hovering over another task → insert before that task
-        const overTask = tasks.find(t => t.id === overId)
-        if (!overTask) return setDragOver(null)
-        const columnTasks = tasks.filter(t => t.status === overTask.status && t.id !== active.id)
-        const index = columnTasks.findIndex(t => t.id === overTask.id)
-        setDragOver({ column: overTask.status, index })
+      const overTask = tasks.find(t => t.id === overId);
+      if (!overTask) return setDragOver(null);
+      const columnTasks = tasks.filter(t => t.status === overTask.status && t.id !== active.id);
+      const index = columnTasks.findIndex(t => t.id === overTask.id);
+      setDragOver({ column: overTask.status, index });
     }
-    }
+  };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over) return setActiveTask(null)
+    const { active, over } = event;
+    if (!over) return setActiveTask(null);
 
-    const taskId = active.id as string
-    const overId = over.id as string
+    const taskId = active.id as string;
+    const overId = over.id as string;
 
-    const activeTaskData = tasks.find(t => t.id === taskId)
-    if (!activeTaskData) return setActiveTask(null)
+    const activeTaskData = tasks.find(t => t.id === taskId);
+    if (!activeTaskData) return setActiveTask(null);
 
-    let newStatus: Task["status"]
-    let newTasksOrder: Task[] = []
+    let newStatus: TaskStatus;
+    let newTasksOrder: Task[] = [];
 
-    if (columns.includes(overId as Task["status"])) {
-        // Case 1: Dropped directly on column → move to end
-        newStatus = overId as Task["status"]
-
-        newTasksOrder = tasks.map(t =>
-        t.id === taskId ? { ...t, status: newStatus } : t
-        )
-
+    if (columns.includes(overId as TaskStatus)) {
+      newStatus = overId as TaskStatus;
+      newTasksOrder = tasks.map(t => (t.id === taskId ? { ...t, status: newStatus } : t));
     } else {
-        // Case 2: Dropped on another task → reorder in that column
-        const overTask = tasks.find(t => t.id === overId)
-        if (!overTask) return setActiveTask(null)
+      const overTask = tasks.find(t => t.id === overId);
+      if (!overTask) return setActiveTask(null);
+      newStatus = overTask.status;
 
-        newStatus = overTask.status
-
-        // Remove active task from column
-        const columnTasks = tasks
-        .filter(t => t.status === newStatus && t.id !== taskId)
-
-        // Insert at the dropped position
-        const overIndex = columnTasks.findIndex(t => t.id === overId)
-        columnTasks.splice(overIndex >= 0 ? overIndex : columnTasks.length, 0, {
+      const columnTasks = tasks.filter(t => t.status === newStatus && t.id !== taskId);
+      const overIndex = columnTasks.findIndex(t => t.id === overId);
+      columnTasks.splice(overIndex >= 0 ? overIndex : columnTasks.length, 0, {
         ...activeTaskData,
         status: newStatus,
-        })
-
-        // Merge other tasks
-        const otherTasks = tasks.filter(t => t.status !== newStatus && t.id !== taskId)
-        newTasksOrder = [...otherTasks, ...columnTasks]
+      });
+      const otherTasks = tasks.filter(t => t.status !== newStatus && t.id !== taskId);
+      newTasksOrder = [...otherTasks, ...columnTasks];
     }
 
-    // Update state
-    setTasks(newTasksOrder)
+    setTasks(newTasksOrder);
 
-    // Persist column change to Supabase
     if (activeTaskData.status !== newStatus) {
-        const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId)
-        if (error) console.error(error)
+      const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
+      if (error) console.error(error);
     }
 
-    setActiveTask(null)
+    setActiveTask(null);
+  };
+
+  // --- Handle assignee updates (sync with Supabase) ---
+  const handleAssigneesChange = async (taskId: string, assignees: TeamMember[]) => {
+    setTaskAssignees(prev => ({ ...prev, [taskId]: assignees }));
+
+    // Persist to Supabase
+    const { data: existing } = await supabase.from('task_assignees').select('*').eq('task_id', taskId);
+    const existingIds = existing?.map(e => e.member_id) ?? [];
+
+    // Delete removed
+    const toDelete = existingIds.filter(id => !assignees.some(a => a.id === id));
+    if (toDelete.length > 0) {
+      await supabase.from('task_assignees').delete().eq('task_id', taskId).in('member_id', toDelete);
     }
+
+    // Insert new
+    const toInsert = assignees.filter(a => !existingIds.includes(a.id));
+    if (toInsert.length > 0) {
+      await supabase.from('task_assignees').insert(toInsert.map(a => ({ task_id: taskId, member_id: a.id })));
+    }
+  };
 
   return (
     <div className="p-4">
+      <TeamMemberForm onTeamUpdated={fetchTeam} />
       <CreateTaskForm onTaskCreated={fetchTasks} />
 
-      <DndContext 
-        sensors={sensors} 
-        collisionDetection={closestCenter} 
-        onDragStart={handleDragStart} 
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
-        >
+      >
         <div className="flex gap-4 mt-4">
-          {columns.map((status) => (
+          {columns.map(status => (
             <Column
               key={status}
               id={status}
-              tasks={tasks.filter((t) => t.status === status)}
+              tasks={tasks
+                .filter(t => t.status === status)
+                .map(t => ({ ...t, assignees: taskAssignees[t.id] ?? [] }))}
               activeId={activeTask?.id ?? null}
               dragOver={dragOver}
+              team={team}
+              onAssigneesChange={handleAssigneesChange}
             />
           ))}
         </div>
 
         <DragOverlay>
           {activeTask && (
-            <div className="bg-(--bg-task) p-4 rounded-lg shadow-lg scale-105 cursor-grabbing">{activeTask.title}</div>
+            <div className="bg-(--bg-task) p-4 rounded-lg shadow-lg scale-105 cursor-grabbing">
+              {activeTask.title}
+            </div>
           )}
         </DragOverlay>
       </DndContext>
     </div>
-  )
-}
-
-// Droppable column
-function Column({ id, tasks, activeId, dragOver }: { id: string; tasks: Task[]; activeId: string | null; dragOver: { column: Task["status"]; index: number } | null }) {
-  const { setNodeRef } = useDroppable({ id })
-
-  // Filter out the currently dragged card
-  const visibleTasks = tasks.filter(t => t.id !== activeId)
-
-  return (
-    <div ref={setNodeRef} id={id} className="flex-1 bg-(--bg-column) p-4 rounded-lg shadow-sm min-h-48 flex flex-col">
-      <h2 className="font-bold mb-2">{id.replace("_", " ").toUpperCase()}</h2>
-
-      {visibleTasks.length > 0 ? visibleTasks.map((task, index) => (
-        <div key={task.id}>
-          {/* Render ghost placeholder if it should appear before this task */}
-          {dragOver?.column === id && dragOver.index === index && activeId && (
-            <div className="h-16 mb-3 rounded-lg border-2 border-dashed border-gray-400 bg-gray-200 animate-pulse"></div>
-          )}
-          <SortableTask task={task} activeId={activeId} />
-        </div>
-      )) : (
-        <div className="text-amber-400 italic min-h-12.5 flex items-center justify-center">
-          {dragOver?.column === id && activeId && (
-            <div className="h-16 mb-3 rounded-lg border-2 border-dashed border-gray-400 bg-gray-200 animate-pulse"></div>
-          )}
-          Drop tasks here
-        </div>
-      )}
-
-      {/* Render placeholder at end if dragging to empty space */}
-      {dragOver?.column === id && dragOver.index >= visibleTasks.length && activeId && (
-        <div className="h-16 mb-3 rounded-lg border-2 border-dashed border-gray-400 bg-gray-200 animate-pulse"></div>
-      )}
-    </div>
-  )
-}
-
-// Draggable task
-import { useSortable } from "@dnd-kit/sortable"
-function SortableTask({ task, activeId }: { task: Task; activeId: string | null }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
-  const isDragging = task.id === activeId;
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      style={{ 
-        ...style, 
-        visibility: isDragging ? "hidden" : "visible"
-        }}
-    className="bg-(--bg-task) p-4 mb-3 rounded-lg shadow-md cursor-grab hover:shadow-lg hover:scale-[1.02] transition-transform"
-    >
-      <h3 className="font-semibold text-(--text-primary) text-lg mb-1">{task.title}</h3>
-
-      {task.description && (
-        <p className="text-(--text-secondary) text-sm mb-2 line-clamp-3">
-          {task.description}
-        </p>
-        )}
-
-        {task.priority && (
-        <span
-          className={`inline-block px-2 py-1 text-xs rounded-full font-semibold ${
-            task.priority === "high" ? "bg-red-200 text-red-800" :
-            task.priority === "normal" ? "bg-yellow-200 text-yellow-800" :
-            "bg-green-200 text-green-800"
-          }`}
-        >
-          {task.priority.toUpperCase()}
-        </span>
-      )}
-    </div>
-  )
+  );
 }

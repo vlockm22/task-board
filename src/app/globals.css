@@ -1,13 +1,13 @@
-@import "tailwindcss";
-@import "tailwindcss/preflight";
+@import 'tailwindcss';
+@import 'tailwindcss/preflight';
 
 /* CSS variables for palette */
 :root {
-  --bg-primary: #3D315B;
-  --bg-column: #444B6E;
-  --bg-task: #708B75;
-  --bg-task-hover: #9AB87A;
-  --text-primary: #F8F991;
+  --bg-primary: #3d315b;
+  --bg-column: #444b6e;
+  --bg-task: #708b75;
+  --bg-task-hover: #9ab87a;
+  --text-primary: #f8f991;
   --text-secondary: #555555;
   --accent: #6366f1; /* Tailwind indigo-500 */
   --font-sans: 'Inter', Arial, Helvetica, sans-serif;
@@ -15,11 +15,11 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-primary: #3D315B;
-    --bg-column: #444B6E;
-    --bg-task: #708B75;
-    --bg-task-hover: #9AB87A;
-    --text-primary: #F8F991;
+    --bg-primary: #3d315b;
+    --bg-column: #444b6e;
+    --bg-task: #708b75;
+    --bg-task-hover: #9ab87a;
+    --text-primary: #f8f991;
     --text-secondary: #555555;
     --accent: #818cf8;
   }
@@ -30,10 +30,13 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  transition: background 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 
 /* Smooth transitions for interactive elements */
-button, .task-card {
+button,
+.task-card {
   transition: all 0.2s ease-in-out;
 }
