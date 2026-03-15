@@ -9,9 +9,10 @@ type ColumnProps = {
   dragOver: { column: Task['status']; index: number } | null;
   team: TeamMember[];
   onAssigneesChange: (taskId: string, assignees: TeamMember[]) => void;
+  onDelete?: (taskId: string) => void;
 };
 
-export default function Column({ id, tasks, activeId, dragOver, team, onAssigneesChange }: ColumnProps) {
+export default function Column({ id, tasks, activeId, dragOver, team, onAssigneesChange, onDelete }: ColumnProps) {
   const { setNodeRef } = useDroppable({ id });
 
   const visibleTasks = tasks.filter(t => t.id !== activeId);
@@ -37,6 +38,7 @@ export default function Column({ id, tasks, activeId, dragOver, team, onAssignee
               activeId={activeId}
               team={team}
               onAssigneesChange={onAssigneesChange}
+              onDelete={taskId => onDelete?.(taskId)}
             />
           </div>
         ))

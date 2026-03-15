@@ -3,10 +3,10 @@
 
 /* CSS variables for palette */
 :root {
-  --bg-primary: #3d315b;
-  --bg-column: #444b6e;
-  --bg-task: #708b75;
-  --bg-task-hover: #9ab87a;
+  --bg-primary: #333333;
+  --bg-column: #444444;
+  --bg-task: #242424;
+  --bg-task-hover: #272727;
   --text-primary: #f8f991;
   --text-secondary: #555555;
   --accent: #6366f1; /* Tailwind indigo-500 */
@@ -15,9 +15,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-primary: #3d315b;
-    --bg-column: #444b6e;
-    --bg-task: #708b75;
+    --bg-primary: #222222;
+    --bg-column: #646464;
+    --bg-task: #4b4b4b;
     --bg-task-hover: #9ab87a;
     --text-primary: #f8f991;
     --text-secondary: #555555;

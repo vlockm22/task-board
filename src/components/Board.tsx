@@ -34,7 +34,7 @@ export default function Board() {
   const fetchTeam = async () => {
     const { data, error } = await supabase.from('team_members').select('*');
     if (error) console.error(error);
-    else setTeam(data);
+    else setTeam(data ?? []);
   };
 
   const fetchTasks = async () => {
@@ -43,7 +43,7 @@ export default function Board() {
       .select('*')
       .order('created_at', { ascending: true });
     if (error) console.error(error);
-    else setTasks(data as Task[]);
+    else setTasks(data as Task[] ?? []);
   };
 
   const fetchAssignees = async () => {
@@ -51,7 +51,7 @@ export default function Board() {
     if (error) return console.error(error);
 
     const map: Record<string, TeamMember[]> = {};
-    data.forEach(a => {
+    (data ?? []).forEach((a: any) => {
       const member = team.find(t => t.id === a.member_id);
       if (!member) return;
       if (!map[a.task_id]) map[a.task_id] = [];
@@ -127,8 +127,10 @@ export default function Board() {
       newTasksOrder = [...otherTasks, ...columnTasks];
     }
 
+    // Update UI immediately
     setTasks(newTasksOrder);
 
+    // Persist if status changed
     if (activeTaskData.status !== newStatus) {
       const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
       if (error) console.error(error);
@@ -143,7 +145,7 @@ export default function Board() {
 
     // Persist to Supabase
     const { data: existing } = await supabase.from('task_assignees').select('*').eq('task_id', taskId);
-    const existingIds = existing?.map(e => e.member_id) ?? [];
+    const existingIds = existing?.map((e: any) => e.member_id) ?? [];
 
     // Delete removed
     const toDelete = existingIds.filter(id => !assignees.some(a => a.id === id));
@@ -158,10 +160,60 @@ export default function Board() {
     }
   };
 
+  // Create handler for task creation to avoid resurrecting deleted tasks
+  // CreateTaskForm should ideally call onTaskCreated(newTask). If it doesn't, we fallback to fetchTasks().
+  const handleTaskCreated = (newTask?: Task) => {
+    if (newTask && newTask.id) {
+      // optimistic append
+      setTasks(prev => [...prev, newTask]);
+    } else {
+      // fallback: re-fetch from DB (use sparingly)
+      fetchTasks();
+    }
+  };
+
+  // Robust delete handler that also removes comments and updates local state
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Delete this task and all its comments? This cannot be undone.')) return;
+
+    try {
+      // 1) delete comments explicitly (safe fallback if cascade isn't working)
+      const { error: commentsError } = await supabase.from('comments').delete().eq('task_id', taskId);
+      if (commentsError) {
+        console.error('Error deleting comments for task:', commentsError);
+        // continue anyway, attempt to delete task
+      }
+
+      // 2) delete assignees rows for cleanliness
+      const { error: assigneeError } = await supabase.from('task_assignees').delete().eq('task_id', taskId);
+      if (assigneeError) {
+        console.error('Error deleting task_assignees for task:', assigneeError);
+      }
+
+      // 3) delete the task itself
+      const { error: taskError } = await supabase.from('tasks').delete().eq('id', taskId);
+      if (taskError) {
+        console.error('Error deleting task:', taskError);
+        return;
+      }
+
+      // 4) update local state
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      setTaskAssignees(prev => {
+        const copy = { ...prev };
+        delete copy[taskId];
+        return copy;
+      });
+    } catch (err) {
+      console.error('Unexpected error deleting task:', err);
+    }
+  };
+
   return (
     <div className="p-4">
       <TeamMemberForm onTeamUpdated={fetchTeam} />
-      <CreateTaskForm onTaskCreated={fetchTasks} />
+      {/* pass our smart handler to avoid full refetch when possible */}
+      <CreateTaskForm onTaskCreated={handleTaskCreated} />
 
       <DndContext
         sensors={sensors}
@@ -182,6 +234,7 @@ export default function Board() {
               dragOver={dragOver}
               team={team}
               onAssigneesChange={handleAssigneesChange}
+              onDelete={handleDeleteTask} // pass the unified delete handler
             />
           ))}
         </div>

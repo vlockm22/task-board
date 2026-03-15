@@ -10,9 +10,10 @@ type Props = {
   activeId: string | null;
   team: TeamMember[];
   onAssigneesChange: (taskId: string, assignees: TeamMember[]) => void;
+  onDelete?: (taskId: string) => void;
 };
 
-export default function SortableTask({ task, activeId, team, onAssigneesChange }: Props) {
+export default function SortableTask({ task, activeId, team, onAssigneesChange, onDelete }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
   const [showDetail, setShowDetail] = useState(false);
 
@@ -28,6 +29,18 @@ export default function SortableTask({ task, activeId, team, onAssigneesChange }
         style={{ ...style, visibility: isDragging ? 'hidden' : 'visible' }}
         className="bg-(--bg-task) p-4 mb-3 rounded-lg shadow-md cursor-grab hover:shadow-lg hover:scale-[1.02] transition-transform"
       >
+        <div className="absolute top-2 right-2">
+            <button
+                onClick={e => {
+                e.stopPropagation(); // Prevent modal from opening
+                onDelete?.(task.id);
+                }}
+                className="text-gray-400 hover:text-red-600"
+                title="Delete task"
+            >
+                ✕
+            </button>
+        </div>
         <div className="cursor-pointer" onClick={() => !isDragging && setShowDetail(true)}>
           <h3 className="font-semibold text-lg mb-1">{task.title}</h3>
           {task.description && <p className="text-gray-600 text-sm mb-2 line-clamp-3">{task.description}</p>}
