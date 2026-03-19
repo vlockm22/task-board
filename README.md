@@ -1,6 +1,7 @@
 This is a Kanban-style project manager/task board application design with Next.js, Supabase, and TailwindCSS.
 
-Functionality:
+Functionality:  
+
 -Create custom tasks  
 
 -Drag-and-drop tasks to completion state columns  
