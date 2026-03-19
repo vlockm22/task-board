@@ -43,7 +43,7 @@ export default function Board() {
       .select('*')
       .order('created_at', { ascending: true });
     if (error) console.error(error);
-    else setTasks(data as Task[] ?? []);
+    else setTasks((data as Task[]) ?? []);
   };
 
   const fetchAssignees = async () => {
@@ -144,20 +144,41 @@ export default function Board() {
     setTaskAssignees(prev => ({ ...prev, [taskId]: assignees }));
 
     // Persist to Supabase
-    const { data: existing } = await supabase.from('task_assignees').select('*').eq('task_id', taskId);
+    const { data: existing } = await supabase
+      .from('task_assignees')
+      .select('*')
+      .eq('task_id', taskId);
     const existingIds = existing?.map((e: any) => e.member_id) ?? [];
 
     // Delete removed
     const toDelete = existingIds.filter(id => !assignees.some(a => a.id === id));
     if (toDelete.length > 0) {
-      await supabase.from('task_assignees').delete().eq('task_id', taskId).in('member_id', toDelete);
+      await supabase
+        .from('task_assignees')
+        .delete()
+        .eq('task_id', taskId)
+        .in('member_id', toDelete);
     }
 
     // Insert new
     const toInsert = assignees.filter(a => !existingIds.includes(a.id));
     if (toInsert.length > 0) {
-      await supabase.from('task_assignees').insert(toInsert.map(a => ({ task_id: taskId, member_id: a.id })));
+      await supabase
+        .from('task_assignees')
+        .insert(toInsert.map(a => ({ task_id: taskId, member_id: a.id })));
     }
+  };
+
+  // --- Handle priority updates (sync with Supabase) ---
+  const handlePriorityChange = async (taskId: string, newPriority: Task['priority']) => {
+    setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, priority: newPriority } : t)));
+
+    // Persist to Supabase
+    const { error } = await supabase
+      .from('tasks')
+      .update({ priority: newPriority })
+      .eq('id', taskId);
+    if (error) console.error(error);
   };
 
   // Create handler for task creation to avoid resurrecting deleted tasks
@@ -178,14 +199,20 @@ export default function Board() {
 
     try {
       // 1) delete comments explicitly (safe fallback if cascade isn't working)
-      const { error: commentsError } = await supabase.from('comments').delete().eq('task_id', taskId);
+      const { error: commentsError } = await supabase
+        .from('comments')
+        .delete()
+        .eq('task_id', taskId);
       if (commentsError) {
         console.error('Error deleting comments for task:', commentsError);
         // continue anyway, attempt to delete task
       }
 
       // 2) delete assignees rows for cleanliness
-      const { error: assigneeError } = await supabase.from('task_assignees').delete().eq('task_id', taskId);
+      const { error: assigneeError } = await supabase
+        .from('task_assignees')
+        .delete()
+        .eq('task_id', taskId);
       if (assigneeError) {
         console.error('Error deleting task_assignees for task:', assigneeError);
       }
@@ -210,43 +237,46 @@ export default function Board() {
   };
 
   return (
-    <div className="p-4">
-      <TeamMemberForm onTeamUpdated={fetchTeam} />
-      {/* pass our smart handler to avoid full refetch when possible */}
-      <CreateTaskForm onTaskCreated={handleTaskCreated} />
+    <div className="min-h-screen bg-(--bg-primary) flex justify-center">
+      <div className="w-full max-w-6xl px-6 py-6">
+        <TeamMemberForm onTeamUpdated={fetchTeam} />
+        {/* pass our smart handler to avoid full refetch when possible */}
+        <CreateTaskForm onTaskCreated={handleTaskCreated} />
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex gap-4 mt-4">
-          {columns.map(status => (
-            <Column
-              key={status}
-              id={status}
-              tasks={tasks
-                .filter(t => t.status === status)
-                .map(t => ({ ...t, assignees: taskAssignees[t.id] ?? [] }))}
-              activeId={activeTask?.id ?? null}
-              dragOver={dragOver}
-              team={team}
-              onAssigneesChange={handleAssigneesChange}
-              onDelete={handleDeleteTask} // pass the unified delete handler
-            />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex gap-4 mt-4">
+            {columns.map(status => (
+              <Column
+                key={status}
+                id={status}
+                tasks={tasks
+                  .filter(t => t.status === status)
+                  .map(t => ({ ...t, assignees: taskAssignees[t.id] ?? [] }))}
+                activeId={activeTask?.id ?? null}
+                dragOver={dragOver}
+                team={team}
+                onAssigneesChange={handleAssigneesChange}
+                onDelete={handleDeleteTask}
+                onPriorityChange={handlePriorityChange}
+              />
+            ))}
+          </div>
 
-        <DragOverlay>
-          {activeTask && (
-            <div className="bg-(--bg-task) p-4 rounded-lg shadow-lg scale-105 cursor-grabbing">
-              {activeTask.title}
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
+          <DragOverlay>
+            {activeTask && (
+              <div className="bg-(--bg-task) p-4 rounded-lg shadow-lg scale-105 cursor-grabbing">
+                {activeTask.title}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
+      </div>
     </div>
   );
 }

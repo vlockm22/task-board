@@ -11,7 +11,13 @@ type Props = {
   onAssigneesChange: (newAssignees: TeamMember[]) => void;
 };
 
-export default function TaskDetailModal({ task, team, assignees, onClose, onAssigneesChange }: Props) {
+export default function TaskDetailModal({
+  task,
+  team,
+  assignees,
+  onClose,
+  onAssigneesChange,
+}: Props) {
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
@@ -37,8 +43,8 @@ export default function TaskDetailModal({ task, team, assignees, onClose, onAssi
               task.priority === 'high'
                 ? 'bg-red-200 text-red-800'
                 : task.priority === 'normal'
-                ? 'bg-yellow-200 text-yellow-800'
-                : 'bg-green-200 text-green-800'
+                  ? 'bg-yellow-200 text-yellow-800'
+                  : 'bg-green-200 text-green-800'
             }`}
           >
             {task.priority.toUpperCase()}
@@ -58,6 +64,6 @@ export default function TaskDetailModal({ task, team, assignees, onClose, onAssi
         <TaskComments taskId={task.id} />
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }

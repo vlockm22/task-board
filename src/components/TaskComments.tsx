@@ -80,9 +80,7 @@ export default function TaskComments({ taskId }: { taskId: string }) {
         {comments.map(comment => (
           <div key={comment.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm">
             <span className="font-bold text-sm">{comment.user_name}</span>
-            <span className="text-xs ml-2">
-              {new Date(comment.created_at).toLocaleString()}
-            </span>
+            <span className="text-xs ml-2">{new Date(comment.created_at).toLocaleString()}</span>
             <p className="text-sm">{comment.content}</p>
           </div>
         ))}
@@ -96,10 +94,7 @@ export default function TaskComments({ taskId }: { taskId: string }) {
           placeholder="Add a comment..."
           className="flex-1 p-2 border rounded"
         />
-        <button
-          onClick={handleAddComment}
-          className="px-3 py-1 bg-blue-500 hover:bg-blue-600"
-        >
+        <button onClick={handleAddComment} className="px-3 py-1 bg-blue-500 hover:bg-blue-600">
           Add
         </button>
       </div>

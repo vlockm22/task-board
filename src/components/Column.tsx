@@ -10,9 +10,19 @@ type ColumnProps = {
   team: TeamMember[];
   onAssigneesChange: (taskId: string, assignees: TeamMember[]) => void;
   onDelete?: (taskId: string) => void;
+  onPriorityChange?: (taskId: string, newPriority: Task['priority']) => void;
 };
 
-export default function Column({ id, tasks, activeId, dragOver, team, onAssigneesChange, onDelete }: ColumnProps) {
+export default function Column({
+  id,
+  tasks,
+  activeId,
+  dragOver,
+  team,
+  onAssigneesChange,
+  onDelete,
+  onPriorityChange,
+}: ColumnProps) {
   const { setNodeRef } = useDroppable({ id });
 
   const visibleTasks = tasks.filter(t => t.id !== activeId);
@@ -21,9 +31,12 @@ export default function Column({ id, tasks, activeId, dragOver, team, onAssignee
     <div
       ref={setNodeRef}
       id={id}
-      className="flex-1 bg-(--bg-column) p-4 rounded-xl shadow-sm min-h-48 flex flex-col transition-all"
+      className="flex-1 bg-(--bg-column) p-4 rounded-xl shadow-sm min-h-48 
+      flex flex-col transition-all max-w-75"
     >
-      <h2 className="font-bold mb-4">{id.replace('_', ' ').toUpperCase()}</h2>
+      <h2 className="font-bold mb-4 subheading flex justify-center">
+        {id.replace('_', ' ').toUpperCase()}
+      </h2>
 
       {visibleTasks.length > 0 ? (
         visibleTasks.map((task, index) => (
@@ -39,6 +52,7 @@ export default function Column({ id, tasks, activeId, dragOver, team, onAssignee
               team={team}
               onAssigneesChange={onAssigneesChange}
               onDelete={taskId => onDelete?.(taskId)}
+              onPriorityChange={onPriorityChange}
             />
           </div>
         ))
